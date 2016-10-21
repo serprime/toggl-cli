@@ -1,6 +1,9 @@
 # toggl-cli
 CLI to get time reports from toggl
 
+Requirements:
+- Node.js
+
 # Setup
 
 Go to https://toggl.com/app/profile and get an api token for Toggl api.
@@ -11,6 +14,12 @@ module.exports = {
   apiToken: "12345678900987654321"
 };
 ```
+
+Install dependencies:
+`npm install`
+
+Run
+`node toggl`
 
 # Commands
 
