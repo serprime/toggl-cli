@@ -127,12 +127,13 @@ var toggl = (function () {
 
     var prevTime = null;
     var pause = 0;
+
     times.forEach(function (time) {
       if (prevTime) {
         var timeStart = new Date(time.start).getTime();
         var timePrevStop = new Date(prevTime.stop).getTime();
         if (timePrevStop > timeStart) {
-          throw Error("time_entry list not sorted ascending!");
+          throw Error("time entries may overlap. please check on the website");
         }
         var msDiff = Math.abs(timeStart - timePrevStop);
         var minutesDiff = Math.ceil((msDiff) / 1000 / 60);
