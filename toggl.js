@@ -119,7 +119,7 @@ var toggl = (function () {
   function printTimesStartPauseStop(times) {
     var startDate = new Date(times[0].start);
     var day = sprintf("%02d.%02d.%0d",
-        startDate.getDate(), startDate.getMonth(), startDate.getFullYear());
+        startDate.getDate(), startDate.getMonth() + 1, startDate.getFullYear());
     var start = sprintf("%02d:%02d", startDate.getHours(), startDate.getMinutes());
 
     var stopDate = new Date(times[times.length - 1].stop);
@@ -150,7 +150,7 @@ var toggl = (function () {
       var stop = new Date(time.stop);
       var d = start;
       process.stdout.write(sprintf("%02d.%02d.%0d | %02d:%02d | %2d:%2d\n",
-          d.getDate(), d.getMonth(), d.getFullYear(),
+          d.getDate(), d.getMonth() + 1, d.getFullYear(),
           start.getHours(), start.getMinutes(),
           stop.getHours(), stop.getMinutes()
       ));
