@@ -3,7 +3,11 @@
 var https = require('https');
 var sprintf = require('sprintf-js').sprintf;
 
+var Promise = require('promise');
+
 var config = require("./config");
+
+var CONFIG_HOURS_PER_DAY = 7.7;
 
 function printUsage() {
   process.stdout.write("" +
@@ -12,12 +16,19 @@ function printUsage() {
       "OPERATIONS:\n" +
       "\n" +
       "  vacation DATE [DATE*]" +
-      "  eg:\n" +
-      "  $> node toggl.js vacation 2016-08-26 2016-08-27\n" +
+      "    get list of start-stop reports for each date\n" +
+      "    eg:\n" +
+      "    $> node toggl.js vacation 2016-08-26 2016-08-27\n" +
       "\n" +
       "  report DATE [DATE*]\n" +
-      "  eg:\n" +
-      "  $> node toggl.js report 2016-08-26 2016-08-27\n");
+      "    get start-stop-pause report for each date" +
+      "    eg:\n" +
+      "    $> node toggl.js report 2016-08-26 2016-08-27\n" +
+      "\n" +
+      "  target\n" +
+      "    get report on monthly target vs actual hours" +
+      "    eg:\n" +
+      "    $> node toggl.js target\n");
 }
 
 /*
@@ -122,7 +133,14 @@ var toggl = (function () {
         startDate.getDate(), startDate.getMonth() + 1, startDate.getFullYear());
     var start = sprintf("%02d:%02d", startDate.getHours(), startDate.getMinutes());
 
-    var stopDate = new Date(times[times.length - 1].stop);
+    var lastTime = times[times.length - 1];
+    var stopDate;
+    if (lastTime.duronly) {
+      stopDate = new Date(new Date(lastTime.start).getTime() + lastTime.duration * 1000);
+    } else {
+      stopDate = new Date(lastTime.stop);
+    }
+
     var stop = sprintf("%02d:%02d", stopDate.getHours(), stopDate.getMinutes());
 
     var prevTime = null;
@@ -157,9 +175,101 @@ var toggl = (function () {
     })
   }
 
+  function buildStartOfMonth() {
+    var now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  }
+
+  function buildEndOfToday() {
+    var now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  }
+
+  var queryTimes = function (start, stop) {
+    return new Promise(function (resolve, reject) {
+      var from = sprintf("%04d-%02d-%02dT00:00:00.000Z",
+          start.getFullYear(), (start.getMonth() + 1), start.getDate());
+
+      var to = sprintf("%04d-%02d-%02dT23:59:59.999Z",
+          stop.getFullYear(), (stop.getMonth() + 1), stop.getDate());
+
+      var query = "?start_date=" + from + "&end_date=" + to;
+
+      var options = {
+        hostname: "www.toggl.com",
+        path: "/api/v8/time_entries" + query,
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        auth: config.apiToken + ":api_token"
+      };
+
+      console.dir(options);
+
+      var req = https.request(options, function (res) {
+        res.on('data', function (data) {
+          if (res.statusCode === 200) {
+            resolve(JSON.parse(data))
+          } else {
+            var message = data.toString('utf8');
+            console.error("error (" + res.statusCode + "): " + message);
+            reject(message);
+          }
+
+        });
+      });
+      req.end();
+      req.on('error', function (e) {
+        console.error(e);
+        reject(e);
+      });
+    });
+  };
+
+  var reportMonthlyTarget = function () {
+    var startOfMonth = buildStartOfMonth();
+    var endOfToday = buildEndOfToday();
+
+    process.stdout.write("month start: " + startOfMonth + "\n");
+    process.stdout.write("today end: " + endOfToday + "\n");
+    process.stdout.write("target hours per day: " + CONFIG_HOURS_PER_DAY + "\n");
+
+    queryTimes(startOfMonth, endOfToday)
+        .then(function (times) {
+          times.forEach(function (time) {
+            process.stdout.write(JSON.stringify(time, null, 1) + "\n");
+
+            // TODO:
+            /*
+             {
+             "id": 499022930,
+             "wid": 1464322,
+             "pid": 16179964,
+             "billable": false,
+             "start": "2016-12-14T08:22:05+00:00",
+             "stop": "2016-12-14T12:26:11+00:00",
+             "duration": 14646,
+             "duronly": false,
+             "at": "2016-12-14T12:26:11+00:00",
+             "uid": 2249289
+             }
+
+             */
+
+            // check for "at" and count days
+            // sum up start-stop difference
+
+          })
+        });
+
+    process.stdout.write("working days this month: " + "TODO\n");
+  };
+
   return {
     addVacation: addVacation,
-    reportTimes: reportTimes
+    reportTimes: reportTimes,
+    reportMonthlyTarget: reportMonthlyTarget
   };
 })();
 
@@ -196,6 +306,10 @@ if (args.length == 0) {
       params.forEach(function (date) {
         toggl.reportTimes(date, {format: "start-stop"});
       });
+      break;
+    }
+    case "target": {
+      toggl.reportMonthlyTarget();
       break;
     }
     default: {
